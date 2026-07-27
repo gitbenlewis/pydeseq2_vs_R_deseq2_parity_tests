@@ -1,0 +1,9 @@
+config/local_env.sh
+.cache/
+results/
+scripts/logs/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.Rhistory

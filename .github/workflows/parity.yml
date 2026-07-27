@@ -1,0 +1,100 @@
+name: PyDESeq2-R DESeq2 parity
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash -el {0}
+        working-directory: parity-suite
+    env:
+      PARITY_CONDA_ENV: nfcore-pydeseq2-comparison
+      PYDESEQ2_REPO: ${{ github.workspace }}/pydeseq2-source
+      PYTHONPATH: ${{ github.workspace }}/pydeseq2-source
+      LOCAL_ENV_FILE: ${{ runner.temp }}/parity-local-env.sh
+
+    steps:
+      - name: Check out parity suite
+        uses: actions/checkout@v4
+        with:
+          path: parity-suite
+          persist-credentials: false
+
+      - name: Check out PyDESeq2 source under test
+        uses: actions/checkout@v4
+        with:
+          repository: gitbenlewis/PyDESeq2
+          ref: main
+          path: pydeseq2-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create pinned comparison environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: nfcore-pydeseq2-comparison
+          environment-file: parity-suite/environment.yml
+          miniforge-version: latest
+          auto-activate: false
+
+      - name: Restore verified input cache
+        uses: actions/cache@v4
+        with:
+          path: parity-suite/.cache/parity
+          key: parity-inputs-${{ runner.os }}-${{ hashFiles('parity-suite/config/config.yaml', 'parity-suite/environment.yml') }}
+
+      - name: Configure the source checkout
+        run: |
+          printf '%s\n' \
+            "export PYDESEQ2_REPO=\"${PYDESEQ2_REPO}\"" \
+            "export PARITY_CONDA_ENV=\"${PARITY_CONDA_ENV}\"" \
+            "export CONDA_BASE=\"$(conda info --base)\"" \
+            > "${LOCAL_ENV_FILE}"
+
+      - name: Require the complete parity matrix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          import yaml
+
+          config = yaml.safe_load(Path("config/config.yaml").read_text())
+          runs = config["parity_params"]["task_runs"]
+          required = {"srp254919_tximport", "pasilla", "pickrell"}
+          missing = required.difference(runs)
+          disabled = {
+              name
+              for name in required
+              if name in runs and not runs[name].get("run", False)
+          }
+          if missing or disabled:
+              raise SystemExit(
+                  f"CI requires all parity runs; missing={sorted(missing)}, "
+                  f"disabled={sorted(disabled)}"
+              )
+          PY
+
+      - name: Run all configured parity checks
+        run: bash scripts/000_run_parity.bash
+
+      - name: Upload parity diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pydeseq2-r-deseq2-parity-${{ github.run_id }}
+          path: parity-suite/results/parity
+          if-no-files-found: warn
+          retention-days: 14

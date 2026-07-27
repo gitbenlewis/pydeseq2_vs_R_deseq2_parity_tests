@@ -1,0 +1,23 @@
+name: nfcore-pydeseq2-comparison
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - bioconda::bioconductor-biobase=2.70.0
+  - bioconda::bioconductor-biocparallel=1.44.0
+  - bioconda::bioconductor-deseq2=1.50.2
+  - bioconda::bioconductor-limma=3.66.0
+  - bioconda::bioconductor-pasilla=1.38.0
+  - bioconda::bioconductor-tweedeseqcountdata=1.48.0
+  - bioconda::nextflow=25.10.2
+  - bioconda::pydeseq2=0.5.4
+  - conda-forge::matplotlib-base=3.11.0
+  - conda-forge::numpy=2.4.6
+  - conda-forge::openjdk=23.0.2
+  - conda-forge::pandas=2.3.3
+  - conda-forge::pytest=8.4.2
+  - conda-forge::python=3.11.15
+  - conda-forge::pyyaml=6.0.3
+  - conda-forge::r-base=4.5.3
+  - conda-forge::scipy=1.17.1

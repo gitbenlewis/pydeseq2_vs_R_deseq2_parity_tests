@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+export PYDESEQ2_REPO="/home/ubuntu/PyDESeq2-pytximport"
+export PARITY_CONDA_ENV="nfcore-pydeseq2-comparison"
+export CONDA_BASE="/home/ubuntu/miniconda3"

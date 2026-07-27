@@ -1,0 +1,170 @@
+parity_params:
+  output_dir: results/parity
+  cache_dir: .cache/parity
+
+  expected_versions:
+    python: "3.11.15"
+    r: "4.5.3"
+    deseq2: "1.50.2"
+    pydeseq2: "0.5.4"
+    pasilla: "1.38.0"
+    tweedeseqcountdata: "1.48.0"
+
+  default_params:
+    n_cpus: 1
+    fit_type: parametric
+    size_factor_fit_type: ratio
+    refit_cooks: true
+
+  pytximport_input_mode_tolerance:
+    rtol: 1.0e-12
+    atol: 1.0e-12
+
+  gate_profiles:
+    common:
+      factors:
+        rtol: 1.0e-12
+        atol: 1.0e-12
+      normalized_counts:
+        rtol: 1.0e-10
+        atol: 1.0e-8
+      base_mean:
+        rtol: 1.0e-10
+        atol: 1.0e-8
+
+    tximport_strict:
+      result_columns:
+        log2FoldChange:
+          pearson_min: 0.999999
+          abs_diff_max: 0.001
+          na_mask_disagreements_max: 0
+        lfcSE:
+          pearson_min: 0.9999
+          abs_diff_max: 0.02
+        stat:
+          pearson_min: 0.9999
+          abs_diff_max: 0.05
+        pvalue:
+          spearman_min: 0.9999
+          abs_diff_max: 0.005
+          na_mask_disagreements_max: 0
+        padj:
+          spearman_min: 0.9999
+          abs_diff_max: 0.01
+          na_mask_disagreements_max: 0
+      sign_concordance_min: 1.0
+      significant_sets_exact:
+        - 0.05
+        - 0.1
+
+    raw_regression:
+      result_columns:
+        log2FoldChange:
+          pearson_min: 0.9999
+          spearman_min: 0.9999
+          abs_diff_p95_max: 5.0e-4
+          abs_diff_max: 0.025
+          na_mask_disagreements_max: 0
+        pvalue:
+          pearson_min: 0.9997
+          spearman_min: 0.9997
+          abs_diff_p95_max: 0.02
+          abs_diff_max: 0.20
+          na_mask_disagreements_max: 1
+        padj:
+          pearson_min: 0.98
+          spearman_min: 0.998
+          abs_diff_p95_max: 0.10
+          abs_diff_max: 0.25
+          na_mask_disagreements_max: 0
+      sign_concordance_min: 0.999
+      significant_jaccard_min:
+        "0.1": 0.97
+
+  task_runs:
+    srp254919_tximport:
+      run: true
+      dataset: srp254919
+      mode: tximport
+      design: "~ treatment"
+      sample_column: experiment_accession
+      factor: treatment
+      factor_levels:
+        - mCherry
+        - hND6
+      contrast_factor: treatment
+      contrast_numerator: hND6
+      contrast_denominator: mCherry
+      alpha: 0.1
+      expected_genes: 1000
+      expected_samples: 6
+      gate_profile: tximport_strict
+      downloads:
+        counts:
+          filename: SRP254919.salmon.merged.gene_counts.top1000cov.tsv
+          url: https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/mus_musculus/rnaseq_expression/SRP254919.salmon.merged.gene_counts.top1000cov.tsv
+          sha256: f470f5cdfdf2830bb911ad518995fa7ede0969929f4db7766c2a063ca56d36e9
+        samples:
+          filename: SRP254919.samplesheet.csv
+          url: https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/mus_musculus/rnaseq_expression/SRP254919.samplesheet.csv
+          sha256: 6d04fc05a0806e609017f75c174b1c8f7dde24368867357b4b31ccef7005f01a
+        lengths:
+          filename: SRP254919.spoofed_lengths.tsv
+          url: https://raw.githubusercontent.com/nf-core/test-datasets/81ed58c830f2ef4640a5fd151968111dd8c5559d/data/genomics/mus_musculus/rnaseq_expression/SRP254919.spoofed_lengths.tsv
+          sha256: d797a6ede76078b91033636e5c4947fc60f31b28ad0d29e808a015e0cd24cfdf
+      input_hashes:
+        counts: f470f5cdfdf2830bb911ad518995fa7ede0969929f4db7766c2a063ca56d36e9
+        samples: 6d04fc05a0806e609017f75c174b1c8f7dde24368867357b4b31ccef7005f01a
+        lengths: d797a6ede76078b91033636e5c4947fc60f31b28ad0d29e808a015e0cd24cfdf
+
+    pasilla:
+      run: true
+      dataset: pasilla
+      mode: matrix
+      design: "~ 0 + condition"
+      sample_column: sample
+      factor: condition
+      factor_levels:
+        - untreated
+        - treated
+      contrast_factor: condition
+      contrast_numerator: treated
+      contrast_denominator: untreated
+      alpha: 0.1
+      expected_genes: 8148
+      expected_samples: 7
+      gate_profile: raw_regression
+      input_hashes:
+        counts: d7aaf3b8f7ebfefd8906cae171633648a9b4182184c007b23b17e0bc019f12d1
+        samples: 8325315f34d4402551191f09d46e37789b5a41a20e86019c39a57dc065dd8fb2
+
+    pickrell:
+      run: true
+      dataset: pickrell
+      mode: matrix
+      design: "~ 0 + gender"
+      sample_column: sample
+      factor: gender
+      factor_levels:
+        - female
+        - male
+      contrast_factor: gender
+      contrast_numerator: male
+      contrast_denominator: female
+      alpha: 0.1
+      expected_genes: 12531
+      expected_samples: 69
+      gate_profile: raw_regression
+      gate_overrides:
+        result_columns:
+          padj:
+            na_mask_disagreements_max: 1250
+      known_gap:
+        name: pickrell_independent_filtering_padj_mask
+        result_column: padj
+        description: >-
+          PyDESeq2 and R DESeq2 can select different independent-filtering
+          cutoffs for this dataset; all other Pickrell gates remain active.
+      input_hashes:
+        counts: 9173a85c72bb7cb5212b51e8746037ac0c35ab52008d46097159ee8fc76592bb
+        samples: e770df47798c4a71e0bb3fa50e46af244d04311909ce03324ef2ec701927c670
