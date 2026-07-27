@@ -39,6 +39,7 @@ export BLIS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 export MPLCONFIGDIR="${REPO_ROOT}/.cache/matplotlib"
+export PYTHONDONTWRITEBYTECODE=1
 
 PYTHON_BIN="$(command -v python || true)"
 if [[ -z "${PYTHON_BIN}" ]]; then
@@ -47,14 +48,10 @@ if [[ -z "${PYTHON_BIN}" ]]; then
 fi
 
 mkdir -p "${SCRIPT_DIR}/logs" "${MPLCONFIGDIR}"
-LOG_PATH="${SCRIPT_DIR}/logs/000_run_parity_$(date -u +%Y%m%dT%H%M%SZ).log"
+LOG_PATH="${SCRIPT_DIR}/logs/010_run_speed_parity_$(date -u +%Y%m%dT%H%M%SZ).log"
 exec > >(tee -a "${LOG_PATH}") 2>&1
 
 cd "${REPO_ROOT}"
 
-export PYTHONDONTWRITEBYTECODE=1
-
-"${PYTHON_BIN}" -m pytest -q -p no:cacheprovider tests
-"${PYTHON_BIN}" -m pytest -q -p no:cacheprovider \
-  "${PYDESEQ2_REPO}/tests/test_transcript_length_normalization.py"
-"${PYTHON_BIN}" "${SCRIPT_DIR}/run_parity.py"
+bash "${SCRIPT_DIR}/000_run_parity.bash"
+"${PYTHON_BIN}" "${SCRIPT_DIR}/run_speed_parity.py" "$@"

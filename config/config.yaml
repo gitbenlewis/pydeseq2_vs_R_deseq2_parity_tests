@@ -2,6 +2,35 @@ parity_params:
   output_dir: results/parity
   cache_dir: .cache/parity
 
+  speed:
+    run: true
+    output_dir: results/speed_parity
+    warmup_repetitions: 1
+    measured_repetitions: 7
+    execution_order: counterbalanced
+    random_seed: 20260727
+    n_cpus: 1
+    native_math_threads: 1
+    calibration_mode: true
+    aspirational_ratio_max: 1.25
+    noise:
+      max_robust_cv: 0.15
+      retry_noisy_once: true
+    default_params:
+      run: true
+    task_runs:
+      srp254919_tximport:
+        run: true
+        provisional_ratio_max: 1.50
+        benchmark_adata: true
+        provisional_adata_overhead_max: 1.15
+      pasilla:
+        run: true
+        provisional_ratio_max: 6.00
+      pickrell:
+        run: true
+        provisional_ratio_max: 2.75
+
   expected_versions:
     python: "3.11.15"
     r: "4.5.3"

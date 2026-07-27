@@ -1,0 +1,145 @@
+name: PyDESeq2-R DESeq2 speed parity
+
+on:
+  workflow_dispatch:
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: speed-parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  speed-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash -el {0}
+        working-directory: parity-suite
+    env:
+      PARITY_CONDA_ENV: nfcore-pydeseq2-comparison
+      PYDESEQ2_REPO: ${{ github.workspace }}/pydeseq2-source
+      PYTHONPATH: ${{ github.workspace }}/pydeseq2-source
+      LOCAL_ENV_FILE: ${{ runner.temp }}/parity-local-env.sh
+
+    steps:
+      - name: Check out parity suite
+        uses: actions/checkout@v4
+        with:
+          path: parity-suite
+          persist-credentials: false
+
+      - name: Check out PyDESeq2 source under test
+        uses: actions/checkout@v4
+        with:
+          repository: gitbenlewis/PyDESeq2
+          ref: main
+          path: pydeseq2-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create pinned comparison environment
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          activate-environment: nfcore-pydeseq2-comparison
+          environment-file: parity-suite/environment.yml
+          miniforge-version: latest
+          auto-activate: false
+
+      - name: Restore verified input cache
+        uses: actions/cache@v4
+        with:
+          path: parity-suite/.cache/parity
+          key: parity-inputs-${{ runner.os }}-${{ hashFiles('parity-suite/config/config.yaml', 'parity-suite/environment.yml') }}
+
+      - name: Configure the source checkout
+        run: |
+          printf '%s\n' \
+            "export PYDESEQ2_REPO=\"${PYDESEQ2_REPO}\"" \
+            "export PARITY_CONDA_ENV=\"${PARITY_CONDA_ENV}\"" \
+            "export CONDA_BASE=\"$(conda info --base)\"" \
+            > "${LOCAL_ENV_FILE}"
+
+      - name: Require the complete diagnostic matrix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          import yaml
+
+          config = yaml.safe_load(Path("config/config.yaml").read_text())
+          parity = config["parity_params"]
+          speed = parity["speed"]
+          required = {"srp254919_tximport", "pasilla", "pickrell"}
+          missing = required.difference(parity["task_runs"])
+          missing_speed = required.difference(speed["task_runs"])
+          disabled = {
+              name
+              for name in required
+              if name in parity["task_runs"]
+              and not parity["task_runs"][name].get("run", False)
+          }
+          disabled_speed = {
+              name
+              for name in required
+              if name in speed["task_runs"]
+              and not speed["task_runs"][name].get("run", False)
+          }
+          if (
+              missing
+              or missing_speed
+              or disabled
+              or disabled_speed
+              or not speed.get("run", False)
+          ):
+              raise SystemExit(
+                  "Speed CI requires all three datasets; "
+                  f"missing={sorted(missing)}, "
+                  f"missing_speed={sorted(missing_speed)}, "
+                  f"disabled={sorted(disabled)}, "
+                  f"disabled_speed={sorted(disabled_speed)}"
+              )
+          if speed.get("calibration_mode") is not True:
+              raise SystemExit(
+                  "GitHub-hosted speed CI must remain in report-only "
+                  "calibration mode"
+              )
+          PY
+
+      - name: Run pull-request speed diagnostics
+        if: github.event_name == 'pull_request'
+        run: >-
+          bash scripts/010_run_speed_parity.bash
+          --warmup-repetitions 1
+          --measured-repetitions 3
+
+      - name: Run canonical scheduled or manual speed diagnostics
+        if: github.event_name != 'pull_request'
+        run: bash scripts/010_run_speed_parity.bash
+
+      - name: Upload correctness diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-precondition-parity-${{ github.run_id }}
+          path: |
+            parity-suite/results/parity
+            parity-suite/scripts/logs/000_run_parity_*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload speed diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pydeseq2-r-deseq2-speed-${{ github.run_id }}
+          path: |
+            parity-suite/results/speed_parity
+            parity-suite/scripts/logs/010_run_speed_parity_*.log
+          if-no-files-found: warn
+          retention-days: 14

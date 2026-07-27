@@ -5,9 +5,10 @@ PyDESeq2 source checkout and R DESeq2. It compares scientific outputs in stages:
 input identity, normalization, normalized abundance, `baseMean`, and unshrunken
 Wald statistics. It does not exercise the nf-core module wrappers.
 
-These checks are numerical-concordance tests, not a benchmark. The one-thread
-limits make runs more deterministic; elapsed time is not an acceptance metric
-and the results support no claim that either implementation is faster.
+The numerical-concordance checks remain the scientific acceptance gate. A
+separate speed-parity runner records matched one-thread timings only after those
+checks pass. Its committed calibration mode makes the reported ratios
+diagnostic evidence rather than a claim that either implementation is faster.
 
 ## Datasets and provenance
 
@@ -70,14 +71,68 @@ The Git-ignored cache defaults to `.cache/parity` and results default to
 The first run needs network access for the pinned SRP254919 files; later runs
 reuse the verified cache.
 
+## Speed-parity benchmark
+
+Run the canonical speed suite with:
+
+```bash
+bash scripts/010_run_speed_parity.bash
+```
+
+This entrypoint first runs `scripts/000_run_parity.bash`, so the benchmark is
+accepted only when fresh numerical-parity outputs match the current config,
+input hashes, and PyDESeq2 source SHA. It then benchmarks all three datasets
+with one unmeasured warm-up and seven measured repetitions. Every R or Python
+cell runs in a fresh process, execution order is deterministically
+counterbalanced, analyses are serialized, and native math libraries remain
+limited to one thread.
+
+The primary timing boundary is `fit_seconds + results_seconds`: R times
+`DESeq()` plus `results()`, while Python times `DeseqDataSet.deseq2()` plus
+`DeseqStats.summary()`. Construction time and fresh-process wall time are
+recorded separately; input preparation, interpreter startup, and diagnostic
+file writing are not part of the primary comparison. The paired ratio is
+`exp(median(log(PyDESeq2 core / R core)))` across aligned repetitions.
+Fresh-process wall time remains an engine-local startup diagnostic and is not
+used to compare implementations or enforce a ratio.
+
+For `srp254919_tximport`, explicit `transcript_lengths` is the primary Python
+cell compared with R's tximport path. The compatible AnnData input path is a
+separate diagnostic cell, reported as AnnData/explicit Python overhead; it is
+not combined with the primary ratio. Pasilla and Pickrell each compare their
+matrix-based Python analysis directly with R.
+
+The committed `calibration_mode: true` reports, but does not enforce, the
+provisional PyDESeq2/R guides of 1.50 for SRP254919, 6.00 for Pasilla, and 2.75
+for Pickrell, the provisional SRP AnnData/explicit guide of 1.15, and the
+aspirational cross-dataset ratio of 1.25. These values are not calibrated
+acceptance thresholds. Hard performance limits require repeated baseline
+sessions on a stable runner: collect at least 20 clean invocations across five
+days before freezing dataset-specific limits from the robust distribution.
+Hard limits are intentionally disabled on shared GitHub hosts.
+
+No timing observation is discarded. The runner reports medians, ranges, IQRs,
+MADs, and robust coefficients of variation for construction, fit, results,
+core, and process-wall timings. If any core-timing robust CV exceeds 0.15, it
+repeats the complete dataset once. A second noisy attempt is classified as
+`inconclusive_infrastructure`, not as an implementation regression.
+
 ## Continuous integration
 
-CI checks out `gitbenlewis/PyDESeq2@main` beside this repository, verifies that
-all three configured runs remain enabled, and invokes the same
-`scripts/000_run_parity.bash` entrypoint. That entrypoint includes the
-checkout's focused `test_transcript_length_normalization.py` suite (current
-baseline: 41 passed and 12 skipped). The diagnostic result tree is uploaded
-whether the parity step passes or fails.
+Correctness CI checks out `gitbenlewis/PyDESeq2@main` beside this repository,
+verifies that all three configured runs remain enabled, and invokes
+`scripts/000_run_parity.bash`. That entrypoint includes the checkout's focused
+`test_transcript_length_normalization.py` suite (current baseline: 41 passed
+and 12 skipped).
+
+The speed workflow uses the same source checkout, pinned Conda environment,
+verified input cache, and `scripts/010_run_speed_parity.bash` entrypoint. Pull
+requests use a shorter one-warm-up/three-measurement diagnostic invocation;
+scheduled and manual runs use the YAML-backed canonical one-plus-seven
+configuration. Because GitHub-hosted runners are variable, calibration mode
+remains required and CI makes no hard ratio or speed-superiority claim.
+Correctness and speed diagnostics are uploaded whether the run passes or
+fails.
 
 ## Configuration and run flags
 
@@ -92,6 +147,10 @@ whether the parity step passes or fails.
 - Each named run merges its values over `default_params`. Set its `run` value
   to `false` only for a focused local iteration; the committed defaults and CI
   keep all three values `true`.
+- `speed` defines the benchmark repetitions, counterbalancing seed, one-thread
+  contract, calibration guides, noise policy, output root, and per-dataset run
+  flags. Its named runs reference the corresponding scientific runs rather
+  than duplicating dataset, design, contrast, or hash settings.
 
 Dataset paths, expected dimensions, source hashes, designs, contrasts, and
 acceptance thresholds belong in the YAML rather than in the Bash entrypoint.
@@ -117,6 +176,23 @@ observed engine versions, the PyDESeq2 source path and Git SHA, timing metadata,
 and the largest numerical disagreements. They are intentionally untracked.
 Aggregate runner logs are written below `results/parity/logs/`, with the
 canonical Bash transcript below `scripts/logs/`.
+
+Each speed invocation is immutable below
+`results/speed_parity/<UTC invocation ID>/`; `latest_run.json` points to the
+newest bundle. `speed_trials.tsv` contains every warm-up and measured cell with
+its execution order, phase timings, process wall time, dimensions, scientific
+output fingerprint, and worker directory. `speed_attempts.tsv` contains the
+robust summaries and ratio observations for every attempt, while
+`speed_summary.tsv` and `speed_summary.json` record the selected attempt and
+final status for all three datasets. Per-worker logs and metadata remain under
+the dataset attempt directories.
+
+The speed `provenance.json` records the config hash, command, PyDESeq2 source
+path and Git SHA, Python package versions, host platform and CPU, CPU affinity,
+BLAS details, native thread settings, and the exact passing correctness
+provenance used as its precondition. The invocation log is stored alongside
+these files, and the Bash transcript remains below `scripts/logs/`. All speed
+artifacts are intentionally untracked.
 
 The suite fails immediately on different sample or gene labels, dimensions, or
 rounded counts, or if either engine falls back from the configured parametric
@@ -153,7 +229,8 @@ Pickrell gates or imply exact adjusted-p-value parity.
 
 ## Scope
 
-This first suite intentionally excludes performance assertions, VST,
-coefficient shrinkage, likelihood-ratio tests, blocked or control-gene
-normalization variants, and nf-core module-wrapper execution. It changes
-neither the nf-core/modules checkout nor the PyDESeq2 checkout under test.
+The speed suite intentionally excludes calibrated hard performance assertions,
+memory/RSS gates, multi-CPU scaling, and Nextflow/module-wrapper overhead. The
+scientific suite still excludes VST, coefficient shrinkage, likelihood-ratio
+tests, and blocked or control-gene normalization variants. Neither suite
+changes the nf-core/modules checkout or the PyDESeq2 checkout under test.
