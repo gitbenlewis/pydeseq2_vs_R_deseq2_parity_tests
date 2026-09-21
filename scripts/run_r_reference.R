@@ -3,7 +3,7 @@
 usage <- function() {
     cat(paste(
         "Usage: Rscript scripts/run_r_reference.R",
-        "--dataset srp254919|pasilla|pickrell",
+        "--dataset srp254919|pasilla|pickrell|geuvadis",
         "--mode tximport|matrix",
         "--cache-dir DIR",
         "--design FORMULA",
@@ -41,7 +41,8 @@ parse_args <- function(args) {
         "contrast_denominator", "alpha", "fit_type", "size_factor_fit_type",
         "refit_cooks", "n_cpus", "output_dir", "expected_r_version",
         "expected_deseq2_version", "expected_pasilla_version",
-        "expected_tweedeseqcountdata_version", "prepare_only"
+        "expected_tweedeseqcountdata_version", "prepare_only",
+        "quant_manifest", "tx2gene", "expected_tximport_version"
     )
     opts <- defaults
     seen <- character()
@@ -308,10 +309,15 @@ opts <- parse_args(commandArgs(trailingOnly = TRUE))
 options(digits = 17, scipen = 0)
 invisible(Sys.setlocale("LC_NUMERIC", "C"))
 
-if (!opts$dataset %in% c("srp254919", "pasilla", "pickrell")) {
-    stop("--dataset must be one of: srp254919, pasilla, pickrell")
+if (!opts$dataset %in% c("srp254919", "pasilla", "pickrell", "geuvadis")) {
+    stop("--dataset must be one of: srp254919, pasilla, pickrell, geuvadis")
 }
-expected_mode <- if (opts$dataset == "srp254919") "tximport" else "matrix"
+expected_mode <- if (opts$dataset %in% c("srp254919", "geuvadis")) "tximport" else "matrix"
+if (opts$dataset == "geuvadis") {
+    for (name in c("quant_manifest", "tx2gene", "expected_tximport_version")) {
+        if (is.null(opts[[name]])) stop("Dataset geuvadis requires --", name)
+    }
+}
 if (!identical(opts$mode, expected_mode)) {
     stop("Dataset ", opts$dataset, " requires --mode ", expected_mode)
 }
@@ -394,10 +400,10 @@ dataset_cache_dir <- normalizePath(opts$cache_dir, mustWork = TRUE)
 prepared_counts_path <- ""
 prepared_samples_path <- ""
 input_lengths_path <- ""
-if (opts$dataset == "srp254919") {
+if (opts$mode == "tximport") {
     for (name in c("counts", "samples", "lengths")) {
         if (is.null(opts[[name]]) || !nzchar(opts[[name]])) {
-            stop("Dataset srp254919 requires --", name)
+            stop("Tximport mode requires --", name)
         }
     }
     samples <- read_samples(opts$samples, opts$sample_column, opts$samples_sep)
@@ -410,6 +416,36 @@ if (opts$dataset == "srp254919") {
     input_counts_path <- normalizePath(opts$counts, mustWork = TRUE)
     input_samples_path <- normalizePath(opts$samples, mustWork = TRUE)
     input_lengths_path <- normalizePath(opts$lengths, mustWork = TRUE)
+    if (!is.null(opts$quant_manifest)) {
+        if (as.character(packageVersion("tximport")) != opts$expected_tximport_version) {
+            stop("Unexpected tximport version")
+        }
+        manifest <- read.delim(opts$quant_manifest, stringsAsFactors = FALSE)
+        if (!identical(manifest$sample, sample_ids)) stop("Salmon sample order mismatch")
+        files <- setNames(manifest$path, manifest$sample)
+        imported_txi <- tximport::tximport(
+            files, type = "salmon", tx2gene = read.csv(opts$tx2gene),
+            countsFromAbundance = "no", ignoreTxVersion = FALSE,
+            ignoreAfterBar = FALSE, dropInfReps = TRUE
+        )
+        for (field in c("counts", "length", "abundance")) {
+            if (!setequal(rownames(imported_txi[[field]]), rownames(counts))) {
+                stop("R and Python importers returned different gene sets")
+            }
+            # Align by verified identifiers; R locale sorting differs from Python.
+            imported_txi[[field]] <- imported_txi[[field]][rownames(counts), , drop = FALSE]
+            write.table(
+                data.frame(gene_id = rownames(imported_txi[[field]]),
+                           imported_txi[[field]], check.names = FALSE),
+                file.path(output_dir, paste0("r_import_", field, ".tsv")),
+                sep = "\t", quote = FALSE, row.names = FALSE
+            )
+        }
+        counts <- imported_txi$counts
+        lengths <- imported_txi$length
+        writeLines(as.character(packageVersion("tximport")),
+                   file.path(output_dir, "r_tximport_version.txt"))
+    }
 } else {
     has_counts <- !is.null(opts[["counts"]]) && nzchar(opts[["counts"]])
     has_samples <- !is.null(opts[["samples"]]) && nzchar(opts[["samples"]])

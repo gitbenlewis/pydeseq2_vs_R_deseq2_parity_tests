@@ -111,6 +111,62 @@ parity_params:
         "0.1": 0.97
 
   task_runs:
+    geuvadis_salmon_tximport:
+      run: true
+      dataset: geuvadis
+      mode: tximport
+      input_source: salmon_quant
+      design: "~ condition"
+      sample_column: sample
+      factor: condition
+      factor_levels: [A, B]
+      contrast_factor: condition
+      contrast_numerator: B
+      contrast_denominator: A
+      alpha: 0.1
+      expected_samples: 6
+      expected_genes: 25343
+      gate_profile: tximport_strict
+      # Artificial grouping for software validation; not a biological contrast.
+      sample_groups:
+        ERR188297: A
+        ERR188088: A
+        ERR188329: A
+        ERR188288: B
+        ERR188021: B
+        ERR188356: B
+      importer_versions: {pytximport: "0.13.0", tximport: "1.38.2"}
+      import_tolerance: {rtol: 1.0e-10, atol: 1.0e-8}
+      source_commit: d299298a82daf36f96f0506a36fa802bfddef1ff
+      downloads:
+        ERR188297:
+          filename: ERR188297.sf
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188297/quant.sf
+          sha256: 668a028761de121c97a93c0e54c6cbd9d55abfd67b0887281bb97dbc73aedabe
+        ERR188088:
+          filename: ERR188088.sf
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188088/quant.sf
+          sha256: 36975877b35b8d91440ddbd68b19ca21e704b322abde29edf635b96ec8e4477f
+        ERR188329:
+          filename: ERR188329.sf
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188329/quant.sf
+          sha256: 0374b200c3c718f43a66a2612febba76b3cb5b172d2df75d1939701514c712ae
+        ERR188288:
+          filename: ERR188288.sf
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188288/quant.sf
+          sha256: 04f7ebb674e1819fd722737878e03678c895863232a3d3094cb3214ff38be44d
+        ERR188021:
+          filename: ERR188021.sf
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188021/quant.sf
+          sha256: 10d98a6aef22816a4849daa6b856e9f076ada8df3e6f11513b9b7ffd7e93b629
+        ERR188356:
+          filename: ERR188356.sf
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188356/quant.sf
+          sha256: 4faabcaf62b6e0e5716040a1fbf9da09995160796d8c8324d4ba85fceb763a9f
+        tx2gene:
+          filename: tx2gene.csv
+          url: https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/tx2gene.csv
+          sha256: cdc79b8161de479ddaa6521304c42ced8d76bc6f3f9ba50d7a922f042ca4b107
     srp254919_tximport:
       run: true
       dataset: srp254919

@@ -12,11 +12,12 @@ diagnostic evidence rather than a claim that either implementation is faster.
 
 ## Datasets and provenance
 
-All three runs are enabled by default under `parity_params.task_runs` in
+All four runs are enabled by default under `parity_params.task_runs` in
 `config/config.yaml`.
 
 | Run | Pinned source and preparation | Analysis |
 | --- | --- | --- |
+| `geuvadis_salmon_tximport` | Six public Salmon 0.6.0 quantifications and the RefSeq-to-gene mapping from `mikelove/tximportData@d299298a82daf36f96f0506a36fa802bfddef1ff` (GPL >= 2). All seven downloaded files have pinned SHA-256 hashes. | `~ condition`; artificial B versus A grouping (three samples each), exclusively for software validation. R tximport 1.38.2 and pytximport 0.13.0 independently import the same files before DESeq2/PyDESeq2 analysis. |
 | `srp254919_tximport` | The nf-core/test-datasets `modules` data at immutable commit `81ed58c830f2ef4640a5fd151968111dd8c5559d`. The 1,000-gene count table, six-sample sheet, and spoofed transcript-length table are downloaded to the Git-ignored cache and checked against the SHA-256 values recorded in `config/config.yaml`. | `~ treatment`; hND6 versus mCherry. R uses `DESeqDataSetFromTximport(..., countsFromAbundance = "no")`. PyDESeq2 is run both with explicit `transcript_lengths` and with `AnnData.obsm["length"]` plus `AnnData.uns["counts_from_abundance"] = None`; those Python paths must first agree with each other. |
 | `pasilla` | The count matrix and sample annotation shipped in DESeq2 1.50.2. The vignette-style filter `rowSums(counts >= 10) >= 3` retains 8,148 genes across seven samples. | `~ 0 + condition`; treated versus untreated. |
 | `pickrell` | `tweeDEseqCountData` 1.48.0 `pickrell.eset`. Removing genes that are zero in all samples retains 12,531 genes across 69 samples. | `~ 0 + gender`; male versus female. |
@@ -120,7 +121,7 @@ repeats the complete dataset once. A second noisy attempt is classified as
 ## Continuous integration
 
 Correctness CI checks out `gitbenlewis/PyDESeq2@main` beside this repository,
-verifies that all three configured runs remain enabled, and invokes
+verifies that all four configured runs remain enabled, and invokes
 `scripts/000_run_parity.bash`. That entrypoint includes the checkout's focused
 `test_transcript_length_normalization.py` suite (current baseline: 41 passed
 and 12 skipped).
@@ -143,10 +144,10 @@ fails.
 - `default_params` defines shared fitting behavior,
   `pytximport_input_mode_tolerance` controls agreement between the two Python
   input paths, and `gate_profiles` defines the R-versus-Python thresholds.
-- `task_runs` contains `srp254919_tximport`, `pasilla`, and `pickrell`.
+- `task_runs` contains `geuvadis_salmon_tximport`, `srp254919_tximport`, `pasilla`, and `pickrell`.
 - Each named run merges its values over `default_params`. Set its `run` value
   to `false` only for a focused local iteration; the committed defaults and CI
-  keep all three values `true`.
+  keep all four values `true`.
 - `speed` defines the benchmark repetitions, counterbalancing seed, one-thread
   contract, calibration guides, noise policy, output root, and per-dataset run
   flags. Its named runs reference the corresponding scientific runs rather
@@ -228,6 +229,36 @@ count beside that allowance on every run. This does not relax the other
 Pickrell gates or imply exact adjusted-p-value parity.
 
 ## Scope
+
+The real-Salmon run starts from published quantifications, without rerunning
+Salmon or manufacturing transcript lengths. Source methods and attribution:
+[tximportData vignette](https://github.com/mikelove/tximportData/blob/d299298a82daf36f96f0506a36fa802bfddef1ff/vignettes/tximportData.Rmd).
+The source mapping omits three of 48,009 transcript identifiers; both importers
+drop these unmapped transcripts. All 25,343 summarized genes are retained.
+Gene sets must match before R outputs are aligned by identifier to Python order
+(R locale sorting can differ). Sample order is checked explicitly.
+
+Imported counts, abundance, and average lengths use `rtol=1e-10, atol=1e-8`,
+exact zero masks, and finite-value checks. Diagnostics are written to
+`import_comparison.json` and `import_gate_results.tsv`. The actual AnnData
+returned by pytximport is tested alongside the explicit interface.
+`py_r_import_*` and `shared_input_comparison.json` additionally compare
+PyDESeq2 against R using identical R-imported matrices to isolate model fitting
+from importer differences. Raw input hashes and importer versions are recorded.
+The artificial sample grouping supports no biological interpretation.
+
+The initial run against PyDESeq2 commit `0e56de2` passes import, rounded-count,
+normalization, normalized-count and base-mean gates, and the two Python input
+paths agree. It **fails** the existing `tximport_strict` Wald gates: maximum
+LFC error is about 0.0362 and adjusted-p-value NA masks differ for 409 genes.
+The same failures persist with shared R-imported inputs, locating the remaining
+gap downstream of import. These strict thresholds remain unchanged; the new
+enabled run therefore makes the canonical command and CI fail on that checkout.
+This is validation evidence, not a claim of complete numerical parity.
+
+This run adds correctness coverage only; speed benchmarks remain the original
+three datasets. Reference outputs remain ignored diagnostics in this repository.
+No PyDESeq2 fixtures or source changes are part of this suite.
 
 The speed suite intentionally excludes calibrated hard performance assertions,
 memory/RSS gates, multi-CPU scaling, and Nextflow/module-wrapper overhead. The

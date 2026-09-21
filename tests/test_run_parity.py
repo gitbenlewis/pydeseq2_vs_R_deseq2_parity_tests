@@ -104,7 +104,7 @@ def test_main_does_not_execute_disabled_runs(tmp_path, monkeypatch):
 
     assert run_parity.main() == 0
     summary = pd.read_csv(tmp_path / "results" / "parity_summary.tsv", sep="\t")
-    assert summary["status"].tolist() == ["skipped", "skipped", "skipped"]
+    assert summary["status"].tolist() == ["skipped"] * len(config["task_runs"])
 
 
 def test_verify_checksum_rejects_mismatch(tmp_path):
@@ -339,9 +339,82 @@ def test_allclose_gate_reports_empty_finite_comparison_as_failure():
     assert np.isnan(gates[0]["observed"])
 
 
+@pytest.mark.parametrize("change", ["none", "values", "zeros", "labels", "nonfinite"])
+def test_salmon_import_gates(tmp_path, change):
+    r = pd.DataFrame([[0.0, 12.0], [9.0, 7.0]], index=["g1", "g2"], columns=["s1", "s2"])
+    py = r.copy()
+    if change == "values":
+        py.iloc[1, 1] += 0.1
+    elif change == "zeros":
+        py.iloc[0, 0] = 1e-15
+    elif change == "labels":
+        py.index = ["g2", "g1"]
+    elif change == "nonfinite":
+        py.iloc[0, 0] = np.nan
+    for field in ("counts", "length", "abundance"):
+        run_parity._write_frame(r, tmp_path / f"r_import_{field}.tsv", "gene_id")
+        run_parity._write_frame(py, tmp_path / f"py_import_{field}.tsv", "gene_id")
+    params = {"import_tolerance": {"rtol": 1e-10, "atol": 1e-8}}
+    if change in {"labels", "nonfinite"}:
+        with pytest.raises(run_parity.ParityError):
+            run_parity.compare_salmon_imports(params, tmp_path)
+    else:
+        gates = run_parity.compare_salmon_imports(params, tmp_path)
+        assert all(gate["passed"] for gate in gates) == (change == "none")
+
+
+@pytest.mark.parametrize("reverse_samples", [False, True])
+def test_salmon_preparation_preserves_imported_values(tmp_path, monkeypatch, reverse_samples):
+    import anndata as ad
+    import pytximport
+
+    paths = {name: tmp_path / name for name in ("s1", "s2", "tx2gene")}
+    pd.DataFrame({"TXNAME": ["t1"], "GENEID": ["g1"]}).to_csv(paths["tx2gene"], index=False)
+    files = [str(paths[name].resolve()) for name in ("s1", "s2")]
+    counts = np.array([[1.2345678901234567], [8.5]])
+    lengths = np.array([[101.25], [222.75]])
+    imported = ad.AnnData(
+        X=counts.copy(), obs=pd.DataFrame(index=files[::-1] if reverse_samples else files),
+        var=pd.DataFrame(index=["g1"]), obsm={"length": lengths, "abundance": counts},
+        uns={"counts_from_abundance": None},
+    )
+
+    def import_files(file_paths, **kwargs):
+        assert [str(path) for path in file_paths] == files
+        assert kwargs["counts_from_abundance"] is None
+        assert kwargs["ignore_transcript_version"] is False
+        assert kwargs["ignore_after_bar"] is False
+        return imported
+
+    monkeypatch.setattr(pytximport, "tximport", import_files)
+    params = {
+        "sample_groups": {"s1": "A", "s2": "B"}, "sample_column": "sample",
+        "factor": "condition", "importer_versions": {"pytximport": "0.13.0"},
+        "downloads": {}, "source_commit": "test",
+    }
+    if reverse_samples:
+        with pytest.raises(run_parity.ParityError, match="sample order"):
+            run_parity.prepare_salmon_inputs(params, paths, tmp_path)
+    else:
+        actual = run_parity.prepare_salmon_inputs(params, paths, tmp_path)
+        assert actual is imported
+        assert list(actual.obs_names) == ["s1", "s2"]
+        np.testing.assert_array_equal(actual.X, counts)
+        np.testing.assert_array_equal(actual.obsm["length"], lengths)
+        assert actual.uns["counts_from_abundance"] is None
+
+
+def test_salmon_inputs_are_not_replaced_with_matrix_cache(tmp_path):
+    paths = {"counts": tmp_path / "py.tsv", "lengths": tmp_path / "length.tsv"}
+    assert run_parity._verify_prepared_inputs(
+        {"mode": "tximport", "dataset": "geuvadis"}, tmp_path, paths.copy()
+    ) == paths
+
+
 def test_committed_config_contains_every_approved_gate():
     config = run_parity.PARITY_CFG
     assert list(config["task_runs"]) == [
+        "geuvadis_salmon_tximport",
         "srp254919_tximport",
         "pasilla",
         "pickrell",

@@ -76,11 +76,12 @@ jobs:
           parity = config["parity_params"]
           speed = parity["speed"]
           required = {"srp254919_tximport", "pasilla", "pickrell"}
-          missing = required.difference(parity["task_runs"])
+          required_scientific = required | {"geuvadis_salmon_tximport"}
+          missing = required_scientific.difference(parity["task_runs"])
           missing_speed = required.difference(speed["task_runs"])
           disabled = {
               name
-              for name in required
+              for name in required_scientific
               if name in parity["task_runs"]
               and not parity["task_runs"][name].get("run", False)
           }

@@ -73,7 +73,7 @@ jobs:
 
           config = yaml.safe_load(Path("config/config.yaml").read_text())
           runs = config["parity_params"]["task_runs"]
-          required = {"srp254919_tximport", "pasilla", "pickrell"}
+          required = {"srp254919_tximport", "pasilla", "pickrell", "geuvadis_salmon_tximport"}
           missing = required.difference(runs)
           disabled = {
               name

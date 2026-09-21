@@ -530,6 +530,7 @@ def _fit_pydeseq2(
     params: dict[str, Any],
     *,
     use_pytximport_adata: bool,
+    imported_adata: Any = None,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     from pydeseq2.dds import DeseqDataSet
     from pydeseq2.ds import DeseqStats
@@ -540,13 +541,17 @@ def _fit_pydeseq2(
 
         if lengths is None:
             raise ValueError("pytximport AnnData mode requires transcript lengths")
-        adata = ad.AnnData(
-            X=counts.to_numpy(),
-            obs=metadata.copy(),
-            var=pd.DataFrame(index=counts.columns),
-        )
-        adata.obsm["length"] = lengths.to_numpy()
-        adata.uns["counts_from_abundance"] = None
+        if imported_adata is not None:
+            adata = imported_adata.copy()
+            adata.obs = metadata.copy()
+        else:
+            adata = ad.AnnData(
+                X=counts.to_numpy(),
+                obs=metadata.copy(),
+                var=pd.DataFrame(index=counts.columns),
+            )
+            adata.obsm["length"] = lengths.to_numpy()
+            adata.uns["counts_from_abundance"] = None
         dds = DeseqDataSet(
             adata=adata,
             design=params["design"],
@@ -812,9 +817,13 @@ def _run_r_reference(
         ("--counts", "counts"),
         ("--samples", "samples"),
         ("--lengths", "lengths"),
+        ("--quant-manifest", "quant_manifest"),
+        ("--tx2gene", "tx2gene"),
     ):
         if key in paths:
             command.extend([flag, str(paths[key])])
+    if "quant_manifest" in paths:
+        command.extend(["--expected-tximport-version", params["importer_versions"]["tximport"]])
 
     environment = os.environ.copy()
     environment.update({name: "1" for name in THREAD_ENV_VARS})
@@ -838,6 +847,84 @@ def _run_r_reference(
         )
 
 
+def prepare_salmon_inputs(
+    params: dict[str, Any], paths: dict[str, Path], output_dir: Path,
+) -> Any:
+    """Import verified Salmon files and retain the actual importer AnnData."""
+    from pytximport import tximport
+
+    version = importlib.metadata.version("pytximport")
+    if version != params["importer_versions"]["pytximport"]:
+        raise ParityError(f"Unexpected pytximport version: {version}")
+    sample_ids = list(params["sample_groups"])
+    files = [paths[sample].resolve() for sample in sample_ids]
+    mapping = pd.read_csv(paths["tx2gene"])
+    mapping.columns = ["transcript_id", "gene_id"]
+    adata = tximport(
+        files, data_type="salmon", transcript_gene_map=mapping,
+        counts_from_abundance=None, ignore_transcript_version=False,
+        ignore_after_bar=False, output_type="anndata",
+    )
+    if list(adata.obs_names) != [str(path) for path in files]:
+        raise ParityError("pytximport changed sample order")
+    if not adata.var_names.is_unique:
+        raise ParityError("pytximport returned duplicate genes")
+    adata.obs_names = sample_ids
+    for name, values in (
+        ("counts", adata.X), ("length", adata.obsm["length"]),
+        ("abundance", adata.obsm["abundance"]),
+    ):
+        frame = pd.DataFrame(_dense(values).T, index=adata.var_names, columns=sample_ids)
+        if not np.isfinite(frame.to_numpy()).all() or (frame.to_numpy() < 0).any():
+            raise ParityError(f"Invalid imported {name}")
+        path = output_dir / f"py_import_{name}.tsv"
+        _write_frame(frame, path, "gene_id")
+        if name in {"counts", "length"}:
+            paths["lengths" if name == "length" else name] = path
+    paths["samples"] = output_dir / "salmon_samples.tsv"
+    pd.DataFrame({
+        params["sample_column"]: sample_ids,
+        params["factor"]: list(params["sample_groups"].values()),
+    }).to_csv(paths["samples"], sep="\t", index=False)
+    paths["quant_manifest"] = output_dir / "quant_manifest.tsv"
+    pd.DataFrame({"sample": sample_ids, "path": files}).to_csv(
+        paths["quant_manifest"], sep="\t", index=False,
+    )
+    (output_dir / "import_provenance.json").write_text(
+        json.dumps({
+            "pytximport": version, "source_commit": params["source_commit"],
+            "verified_source_hashes": {
+                key: spec["sha256"] for key, spec in params["downloads"].items()
+            },
+            "sample_groups": params["sample_groups"],
+            "grouping_purpose": "Artificial contrast for software validation only",
+        }, indent=2) + "\n", encoding="utf-8",
+    )
+    return adata
+
+
+def compare_salmon_imports(params: dict[str, Any], output_dir: Path) -> list[dict[str, Any]]:
+    gates: list[dict[str, Any]] = []
+    metrics = {}
+    for name in ("counts", "length", "abundance"):
+        r = _read_table(output_dir / f"r_import_{name}.tsv", "gene_id")
+        py = _read_table(output_dir / f"py_import_{name}.tsv", "gene_id")
+        validate_frame_alignment(r, py, f"import_{name}")
+        if not np.isfinite(r.to_numpy()).all() or not np.isfinite(py.to_numpy()).all():
+            raise ParityError(f"Nonfinite imported {name}")
+        metrics[name] = comparison_metrics(r, py)
+        _allclose_gate(gates, f"import_{name}", r, py, params["import_tolerance"])
+        zero_mismatches = int(
+            np.count_nonzero((r.to_numpy() == 0) != (py.to_numpy() == 0))
+        )
+        _gate(gates, f"import_{name}_zero_mask", zero_mismatches, "equal", 0)
+    (output_dir / "import_comparison.json").write_text(
+        json.dumps(metrics, indent=2) + "\n", encoding="utf-8",
+    )
+    pd.DataFrame(gates).to_csv(output_dir / "import_gate_results.tsv", sep="\t", index=False)
+    return gates
+
+
 def _prepare_inputs(
     params: dict[str, Any],
     dataset_cache: Path,
@@ -857,7 +944,7 @@ def _verify_prepared_inputs(
     dataset_cache: Path,
     paths: dict[str, Path],
 ) -> dict[str, Path]:
-    if params["dataset"] != "srp254919":
+    if params["mode"] == "matrix":
         paths["counts"] = dataset_cache / "prepared_counts.tsv"
         paths["samples"] = dataset_cache / "prepared_samples.tsv"
     for name, expected in params.get("input_hashes", {}).items():
@@ -970,6 +1057,12 @@ def _clear_run_artifacts(output_dir: Path) -> None:
         "largest_differences.tsv",
         "na_mask_disagreements.tsv",
         "provenance.json",
+        "import_provenance.json",
+        "import_comparison.json",
+        "import_gate_results.tsv",
+        "shared_input_comparison.json",
+        "salmon_samples.tsv",
+        "quant_manifest.tsv",
     )
     for pattern in patterns:
         for path in output_dir.glob(pattern):
@@ -1002,7 +1095,11 @@ def run_named_task(
     validate_run_params(params)
 
     paths = _prepare_inputs(params, dataset_cache)
-    if params["dataset"] != "srp254919":
+    imported_adata = None
+    import_gates = []
+    if params.get("input_source") == "salmon_quant":
+        imported_adata = prepare_salmon_inputs(params, paths, output_dir)
+    if params["mode"] == "matrix":
         generated_paths = (
             dataset_cache / "prepared_counts.tsv",
             dataset_cache / "prepared_samples.tsv",
@@ -1024,6 +1121,8 @@ def run_named_task(
         output_dir,
         parity_cfg["expected_versions"],
     )
+    if imported_adata is not None:
+        import_gates = compare_salmon_imports(params, output_dir)
 
     counts, metadata, lengths = load_analysis_inputs(
         paths["counts"],
@@ -1037,6 +1136,14 @@ def run_named_task(
         raise ParityError(
             f"{run_name} dimensions are {counts.shape}, expected "
             f"({params['expected_samples']}, {params['expected_genes']})"
+        )
+    if imported_adata is not None:
+        # Preserve identical floating-point inputs in both Python interfaces.
+        counts = pd.DataFrame(
+            _dense(imported_adata.X), index=counts.index, columns=counts.columns,
+        )
+        lengths = pd.DataFrame(
+            imported_adata.obsm["length"], index=counts.index, columns=counts.columns,
         )
 
     py_outputs, py_metadata = _fit_pydeseq2(
@@ -1055,6 +1162,7 @@ def run_named_task(
             lengths,
             params,
             use_pytximport_adata=True,
+            imported_adata=imported_adata,
         )
         input_mode_rules = parity_cfg["pytximport_input_mode_tolerance"]
         _assert_python_input_modes_equal(
@@ -1083,6 +1191,24 @@ def run_named_task(
     )
     gate_rules = merge_params(gate_rules, params.get("gate_overrides", {}))
     gates = evaluate_gates(summary, r_outputs, py_outputs, gate_rules)
+    gates.extend(import_gates)
+    if imported_adata is not None:
+        shared_counts, shared_metadata, shared_lengths = load_analysis_inputs(
+            output_dir / "r_import_counts.tsv", paths["samples"],
+            params["sample_column"], params["factor"], params["factor_levels"],
+            output_dir / "r_import_length.tsv",
+        )
+        shared_outputs, _ = _fit_pydeseq2(
+            shared_counts, shared_metadata, shared_lengths, params,
+            use_pytximport_adata=False,
+        )
+        _write_python_outputs(shared_outputs, output_dir, "py_r_import", params["mode"])
+        shared_summary = summarize_comparison(r_outputs, shared_outputs)
+        (output_dir / "shared_input_comparison.json").write_text(
+            json.dumps(shared_summary, indent=2) + "\n", encoding="utf-8",
+        )
+        for gate in evaluate_gates(shared_summary, r_outputs, shared_outputs, gate_rules):
+            gates.append({**gate, "gate": "shared_input_" + gate["gate"]})
 
     (output_dir / "comparison_summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",

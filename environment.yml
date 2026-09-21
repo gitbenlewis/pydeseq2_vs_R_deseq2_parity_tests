@@ -7,6 +7,7 @@ dependencies:
   - bioconda::bioconductor-biobase=2.70.0
   - bioconda::bioconductor-biocparallel=1.44.0
   - bioconda::bioconductor-deseq2=1.50.2
+  - bioconda::bioconductor-tximport=1.38.2
   - bioconda::bioconductor-limma=3.66.0
   - bioconda::bioconductor-pasilla=1.38.0
   - bioconda::bioconductor-tweedeseqcountdata=1.48.0
@@ -18,6 +19,9 @@ dependencies:
   - conda-forge::pandas=2.3.3
   - conda-forge::pytest=8.4.2
   - conda-forge::python=3.11.15
+  - pip
+  - pip:
+      - pytximport==0.13.0
   - conda-forge::pyyaml=6.0.3
   - conda-forge::r-base=4.5.3
   - conda-forge::scipy=1.17.1
