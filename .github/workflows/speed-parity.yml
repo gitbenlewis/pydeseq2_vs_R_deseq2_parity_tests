@@ -24,7 +24,7 @@ jobs:
     env:
       PARITY_CONDA_ENV: nfcore-pydeseq2-comparison
       PYDESEQ2_REPO: ${{ github.workspace }}/pydeseq2-source
-      PYTHONPATH: ${{ github.workspace }}/pydeseq2-source
+      PYTHONPATH: ${{ github.workspace }}/pydeseq2-source/src
       LOCAL_ENV_FILE: ${{ runner.temp }}/parity-local-env.sh
 
     steps:
@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: gitbenlewis/PyDESeq2
-          ref: main
+          ref: 9b42a302fced879b9a721ca855abdd8d9ce91727 # PR #451 baseline
           path: pydeseq2-source
           fetch-depth: 0
           persist-credentials: false
@@ -50,6 +50,9 @@ jobs:
           environment-file: parity-suite/environment.yml
           miniforge-version: latest
           auto-activate: false
+
+      - name: Install the PyDESeq2 checkout metadata
+        run: python -m pip install --no-deps --editable "${PYDESEQ2_REPO}"
 
       - name: Restore verified input cache
         uses: actions/cache@v4

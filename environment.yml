@@ -12,15 +12,19 @@ dependencies:
   - bioconda::bioconductor-pasilla=1.38.0
   - bioconda::bioconductor-tweedeseqcountdata=1.48.0
   - bioconda::nextflow=25.10.2
-  - bioconda::pydeseq2=0.5.4
+  - conda-forge::anndata>=0.11
+  - conda-forge::formulaic>=1.0.2
+  - conda-forge::scikit-learn>=1.6
+  - conda-forge::session-info2
   - conda-forge::matplotlib-base=3.11.0
   - conda-forge::numpy=2.4.6
   - conda-forge::openjdk=23.0.2
   - conda-forge::pandas=2.3.3
   - conda-forge::pytest=8.4.2
-  - conda-forge::python=3.11.15
+  - conda-forge::python=3.12.14
   - pip
   - pip:
+      - formulaic-contrasts==1.0.0
       - pytximport==0.13.0
   - conda-forge::pyyaml=6.0.3
   - conda-forge::r-base=4.5.3

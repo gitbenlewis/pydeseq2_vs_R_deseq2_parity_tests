@@ -22,7 +22,11 @@ if [[ ! -f "${CONDA_SH}" ]]; then
   echo "[ERROR] Conda initialization script not found: ${CONDA_SH}" >&2
   exit 1
 fi
-if [[ ! -d "${PYDESEQ2_REPO}/pydeseq2" ]]; then
+PYDESEQ2_SOURCE="${PYDESEQ2_REPO}"
+if [[ -f "${PYDESEQ2_REPO}/src/pydeseq2/__init__.py" ]]; then
+  PYDESEQ2_SOURCE="${PYDESEQ2_REPO}/src"
+fi
+if [[ ! -f "${PYDESEQ2_SOURCE}/pydeseq2/__init__.py" ]]; then
   echo "[ERROR] PyDESeq2 checkout not found: ${PYDESEQ2_REPO}" >&2
   exit 1
 fi
@@ -31,7 +35,7 @@ fi
 source "${CONDA_SH}"
 conda activate "${PARITY_CONDA_ENV}"
 
-export PYTHONPATH="${PYDESEQ2_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
+export PYTHONPATH="${PYDESEQ2_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1

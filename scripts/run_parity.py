@@ -726,15 +726,16 @@ def python_runtime_versions() -> dict[str, str]:
 def verify_pydeseq2_checkout(repo: Path) -> dict[str, Any]:
     """Import PyDESeq2 from the requested checkout and record Git provenance."""
     repo = repo.resolve()
-    if not (repo / "pydeseq2").is_dir():
+    source_root = repo / "src" if (repo / "src/pydeseq2/__init__.py").is_file() else repo
+    if not (source_root / "pydeseq2/__init__.py").is_file():
         raise ParityError(f"PYDESEQ2_REPO is not a source checkout: {repo}")
-    sys.path.insert(0, str(repo))
+    sys.path.insert(0, str(source_root))
     importlib.invalidate_caches()
     module = importlib.import_module("pydeseq2")
     module_path = Path(module.__file__).resolve()
-    if not module_path.is_relative_to(repo):
+    if not module_path.is_relative_to(source_root / "pydeseq2"):
         raise ParityError(
-            f"Imported PyDESeq2 from {module_path}, outside requested checkout {repo}"
+            f"Imported PyDESeq2 from {module_path}, outside requested source {source_root}"
         )
 
     def git(*args: str) -> str:

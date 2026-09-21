@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -15,6 +18,62 @@ SPEC = importlib.util.spec_from_file_location("run_parity", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 run_parity = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(run_parity)
+
+
+@pytest.mark.parametrize("layout", ["flat", "src", "src_with_stale_flat"])
+def test_verify_checkout_imports_selected_source(tmp_path, monkeypatch, layout):
+    repo = tmp_path / "checkout"
+    source_root = repo if layout == "flat" else repo / "src"
+    package = source_root / "pydeseq2"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text('__version__ = "test-version"\n')
+    if layout == "src_with_stale_flat":
+        (repo / "pydeseq2").mkdir()
+        (repo / "pydeseq2/__init__.py").write_text('raise RuntimeError("stale source")\n')
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=Parity Test",
+         "-c", "user.email=parity@example.invalid", "-c", "commit.gpgsign=false",
+         "commit", "-qm", "test source"],
+        check=True,
+    )
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    monkeypatch.setattr(sys, "dont_write_bytecode", True)
+    monkeypatch.delitem(sys.modules, "pydeseq2", raising=False)
+    try:
+        provenance = run_parity.verify_pydeseq2_checkout(repo)
+    finally:
+        sys.modules.pop("pydeseq2", None)
+
+    assert provenance["module_path"] == str(package / "__init__.py")
+    assert provenance["package_version"] == "test-version"
+    assert provenance["git_commit"] == subprocess.check_output(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True,
+    ).strip()
+    assert provenance["git_dirty"] is False
+
+
+@pytest.mark.parametrize("outside", ["installed", "stale_flat"])
+def test_verify_checkout_rejects_preloaded_wrong_package(tmp_path, monkeypatch, outside):
+    repo = tmp_path / "checkout"
+    package = repo / "src/pydeseq2"
+    package.mkdir(parents=True)
+    (package / "__init__.py").touch()
+    wrong_root = tmp_path / "site-packages" if outside == "installed" else repo
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    monkeypatch.setitem(
+        sys.modules, "pydeseq2",
+        SimpleNamespace(__file__=str(wrong_root / "pydeseq2/__init__.py")),
+    )
+    with pytest.raises(run_parity.ParityError, match="outside requested source"):
+        run_parity.verify_pydeseq2_checkout(repo)
+
+
+def test_verify_checkout_rejects_leftover_cache_directory(tmp_path):
+    (tmp_path / "pydeseq2/__pycache__").mkdir(parents=True)
+    with pytest.raises(run_parity.ParityError, match="not a source checkout"):
+        run_parity.verify_pydeseq2_checkout(tmp_path)
 
 
 def test_merge_params_recursively_applies_run_overrides():

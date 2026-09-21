@@ -32,10 +32,10 @@ parity_params:
         provisional_ratio_max: 2.75
 
   expected_versions:
-    python: "3.11.15"
+    python: "3.12.14"
     r: "4.5.3"
     deseq2: "1.50.2"
-    pydeseq2: "0.5.4"
+    pydeseq2: "0.5.5.dev25+g9b42a302f"
     pasilla: "1.38.0"
     tweedeseqcountdata: "1.48.0"
 

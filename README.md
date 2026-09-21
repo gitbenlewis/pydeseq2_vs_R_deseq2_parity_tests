@@ -22,7 +22,7 @@ All four runs are enabled by default under `parity_params.task_runs` in
 | `pasilla` | The count matrix and sample annotation shipped in DESeq2 1.50.2. The vignette-style filter `rowSums(counts >= 10) >= 3` retains 8,148 genes across seven samples. | `~ 0 + condition`; treated versus untreated. |
 | `pickrell` | `tweeDEseqCountData` 1.48.0 `pickrell.eset`. Removing genes that are zero in all samples retains 12,531 genes across 69 samples. | `~ 0 + gender`; male versus female. |
 
-The Conda environment pins Python 3.11.15, R 4.5.3, DESeq2 1.50.2, the two
+The Conda environment pins Python 3.12.14, R 4.5.3, DESeq2 1.50.2, the two
 Bioconductor data packages, and the Python comparison dependencies. Generated
 Pasilla and Pickrell inputs are cached outside Git. Their configured hashes are
 verified before either engine analyzes the cached bytes and rechecked on every
@@ -50,8 +50,28 @@ export PARITY_CONDA_ENV=nfcore-pydeseq2-comparison
 export CONDA_BASE=/home/ubuntu/miniconda3
 ```
 
-`PYDESEQ2_REPO` may point at any checkout to test, but it must contain the
-PyDESeq2 source tree and Git metadata. From this repository's root, run:
+The current baseline is PR #451 commit
+`9b42a302fced879b9a721ca855abdd8d9ce91727`, after merging upstream main.
+It requires Python 3.12 or newer and uses a `src/pydeseq2` package layout.
+For an existing comparison environment, update it with
+`conda env update --file environment.yml` before continuing.
+
+Install the selected checkout into the comparison environment so its
+Git-derived package metadata matches the source under test:
+
+```bash
+source config/local_env.sh
+source "${CONDA_BASE}/etc/profile.d/conda.sh"
+conda activate "${PARITY_CONDA_ENV}"
+python -m pip install --no-deps --editable "${PYDESEQ2_REPO}"
+```
+
+Repeat that installation after updating the source checkout. The configured
+baseline version is `0.5.5.dev25+g9b42a302f`; testing another revision may require
+updating `expected_versions.pydeseq2` in `config/config.yaml`.
+`PYDESEQ2_REPO` must contain the PyDESeq2 source tree and Git metadata. Both
+`src/pydeseq2` and the historical `pydeseq2` layout are supported, with `src`
+taking precedence. From this repository's root, run:
 
 ```bash
 bash scripts/000_run_parity.bash
@@ -59,11 +79,11 @@ bash scripts/000_run_parity.bash
 
 This is the canonical entrypoint used by CI. It activates
 `PARITY_CONDA_ENV`, limits native math libraries to one thread, places
-`PYDESEQ2_REPO` first on `PYTHONPATH`, runs this repository's focused unit
-tests and the checkout's transcript-length normalization tests, and then
+the selected source directory first on `PYTHONPATH`, runs this repository's
+focused unit tests and the checkout's transcript-length normalization tests, and then
 executes all enabled parity runs. The Python runner resolves
-`pydeseq2.__file__` and fails unless it is inside the resolved
-`PYDESEQ2_REPO`; each report also records the checkout's actual Git SHA. This
+`pydeseq2.__file__` and fails unless it is inside the selected
+package directory; each report also records the checkout's actual Git SHA. This
 prevents an installed PyDESeq2 package from silently replacing the requested
 source checkout.
 
@@ -120,11 +140,12 @@ repeats the complete dataset once. A second noisy attempt is classified as
 
 ## Continuous integration
 
-Correctness CI checks out `gitbenlewis/PyDESeq2@main` beside this repository,
-verifies that all four configured runs remain enabled, and invokes
+Correctness CI checks out `gitbenlewis/PyDESeq2` at the pinned PR #451 baseline
+`9b42a302fced879b9a721ca855abdd8d9ce91727` beside this repository, installs its
+package metadata, verifies that all four configured runs remain enabled, and
+invokes
 `scripts/000_run_parity.bash`. That entrypoint includes the checkout's focused
-`test_transcript_length_normalization.py` suite (current baseline: 41 passed
-and 12 skipped).
+`test_transcript_length_normalization.py` suite.
 
 The speed workflow uses the same source checkout, pinned Conda environment,
 verified input cache, and `scripts/010_run_speed_parity.bash` entrypoint. Pull
@@ -265,6 +286,15 @@ The same failures persist with shared R-imported inputs, locating the remaining
 gap downstream of import. These strict thresholds remain unchanged; the new
 enabled run therefore makes the canonical command and CI fail on that checkout.
 This is validation evidence, not a claim of complete numerical parity.
+
+Revalidation on 2026-09-21 against the PR #451 baseline `9b42a30`, using
+Python 3.12.14, passed all 53 parity-suite tests and 43 transcript-length tests
+(12 skipped). SRP254919, Pasilla, and Pickrell passed their scientific gates.
+GEUVADIS passed import and normalization checks but retained the downstream
+failures, including maximum LFC error of 0.0362 and 409 adjusted-p-value NA-mask
+disagreements. Its shared R-input comparison also failed. The canonical command
+therefore still exits with status 1, and the speed entrypoint stops at that
+correctness precondition. No thresholds were relaxed.
 
 This run adds correctness coverage only; speed benchmarks remain the original
 three datasets. Routine outputs remain ignored; the preserved R snapshot above
