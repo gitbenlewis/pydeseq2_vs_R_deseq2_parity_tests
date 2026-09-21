@@ -228,6 +228,16 @@ that can affect part of this dataset. `known_gap.json` records the observed
 count beside that allowance on every run. This does not relax the other
 Pickrell gates or imply exact adjusted-p-value parity.
 
+## Preserved R fixtures
+
+The seven GEUVADIS R scientific tables and sample metadata are available in
+[`tests/data/geuvadis_salmon_tximport/`](tests/data/geuvadis_salmon_tximport/).
+The fixture README explains usage, regeneration, attribution, and checksum
+verification. Compressed tables preserve the original TSV bytes and include
+portable provenance. They retain the documented downstream parity differences;
+they are reference outputs, not evidence that all Wald gates pass. Run
+`python -m pytest -q tests/test_geuvadis_fixtures.py` to verify them offline.
+
 ## Scope
 
 The real-Salmon run starts from published quantifications, without rerunning
@@ -257,7 +267,8 @@ enabled run therefore makes the canonical command and CI fail on that checkout.
 This is validation evidence, not a claim of complete numerical parity.
 
 This run adds correctness coverage only; speed benchmarks remain the original
-three datasets. Reference outputs remain ignored diagnostics in this repository.
+three datasets. Routine outputs remain ignored; the preserved R snapshot above
+is the explicit exception.
 No PyDESeq2 fixtures or source changes are part of this suite.
 
 The speed suite intentionally excludes calibrated hard performance assertions,

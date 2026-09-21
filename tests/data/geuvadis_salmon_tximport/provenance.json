@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "run_name": "geuvadis_salmon_tximport",
+  "reference_suite_commit": "b272fdc",
+  "original_config_sha256": "a459d496ba64e82c28381930db36ffa4542cb97f8f6bbb90f2908e9fb97080ca",
+  "pydeseq2_commit": "0e56de24ee53321d52f4e85be8f410d99f764ac3",
+  "r_versions": {
+    "biobase_version": "2.70.0",
+    "biocparallel_version": "1.44.0",
+    "deseq2_version": "1.50.2",
+    "pasilla_version": "1.38.0",
+    "r_version": "4.5.3",
+    "tweedeseqcountdata_version": "1.48.0"
+  },
+  "python_versions": {
+    "anndata": "0.12.19",
+    "numpy": "2.4.6",
+    "pandas": "2.3.3",
+    "pydeseq2_distribution": "0.5.4",
+    "pytest": "8.4.2",
+    "python": "3.11.15",
+    "pyyaml": "6.0.3",
+    "scipy": "1.17.1"
+  },
+  "importer_versions": {
+    "pytximport": "0.13.0",
+    "tximport": "1.38.2"
+  },
+  "source_repository": "https://github.com/mikelove/tximportData",
+  "source_commit": "d299298a82daf36f96f0506a36fa802bfddef1ff",
+  "source_license": "GPL-2.0-or-later",
+  "source_files": {
+    "ERR188297": {
+      "filename": "ERR188297.sf",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188297/quant.sf",
+      "sha256": "668a028761de121c97a93c0e54c6cbd9d55abfd67b0887281bb97dbc73aedabe"
+    },
+    "ERR188088": {
+      "filename": "ERR188088.sf",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188088/quant.sf",
+      "sha256": "36975877b35b8d91440ddbd68b19ca21e704b322abde29edf635b96ec8e4477f"
+    },
+    "ERR188329": {
+      "filename": "ERR188329.sf",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188329/quant.sf",
+      "sha256": "0374b200c3c718f43a66a2612febba76b3cb5b172d2df75d1939701514c712ae"
+    },
+    "ERR188288": {
+      "filename": "ERR188288.sf",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188288/quant.sf",
+      "sha256": "04f7ebb674e1819fd722737878e03678c895863232a3d3094cb3214ff38be44d"
+    },
+    "ERR188021": {
+      "filename": "ERR188021.sf",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188021/quant.sf",
+      "sha256": "10d98a6aef22816a4849daa6b856e9f076ada8df3e6f11513b9b7ffd7e93b629"
+    },
+    "ERR188356": {
+      "filename": "ERR188356.sf",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/salmon/ERR188356/quant.sf",
+      "sha256": "4faabcaf62b6e0e5716040a1fbf9da09995160796d8c8324d4ba85fceb763a9f"
+    },
+    "tx2gene": {
+      "filename": "tx2gene.csv",
+      "url": "https://raw.githubusercontent.com/mikelove/tximportData/d299298a82daf36f96f0506a36fa802bfddef1ff/inst/extdata/tx2gene.csv",
+      "sha256": "cdc79b8161de479ddaa6521304c42ced8d76bc6f3f9ba50d7a922f042ca4b107"
+    }
+  },
+  "analysis": {
+    "n_cpus": 1,
+    "fit_type": "parametric",
+    "size_factor_fit_type": "ratio",
+    "refit_cooks": true,
+    "design": "~ condition",
+    "factor": "condition",
+    "factor_levels": [
+      "A",
+      "B"
+    ],
+    "contrast_factor": "condition",
+    "contrast_numerator": "B",
+    "contrast_denominator": "A",
+    "alpha": 0.1,
+    "expected_samples": 6,
+    "expected_genes": 25343,
+    "sample_groups": {
+      "ERR188297": "A",
+      "ERR188088": "A",
+      "ERR188329": "A",
+      "ERR188288": "B",
+      "ERR188021": "B",
+      "ERR188356": "B"
+    }
+  },
+  "results_options": {
+    "independentFiltering": true,
+    "cooksCutoff": true,
+    "countsFromAbundance": "no",
+    "minReplicatesForReplace": 7
+  },
+  "grouping_purpose": "Artificial contrast for software validation only",
+  "known_status": "Import and normalization pass; downstream strict Wald gates fail. No expected values altered.",
+  "tables": {
+    "r_import_counts.tsv.gz": {
+      "sha256": "0410cc5e8a606d6b1addac3308e86eb2e7c679054f4758761a46aab174cd2022",
+      "uncompressed_sha256": "3edfc8897c83430a0dd0a2b1ee27f2946764f95602cb3f1ed954169dd2fae23a",
+      "bytes": 496494,
+      "uncompressed_bytes": 1096103
+    },
+    "r_import_abundance.tsv.gz": {
+      "sha256": "21f947d8e3a773f146bf95e6c043e264e07155ba12bf410944200839c86beb32",
+      "uncompressed_sha256": "54b713c96ffea8305aa7d00ca4c355729512cb8b245409ca946afd3229638b7e",
+      "bytes": 572598,
+      "uncompressed_bytes": 1276373
+    },
+    "r_import_length.tsv.gz": {
+      "sha256": "c78cf7f7066618625a5729fcaa57456e9b8bab3739cf4257844ffb3f8e3b3cba",
+      "uncompressed_sha256": "2e95d4100ba05deaf6350b612028aa4ababcdd909152a0bab75642e994d56890",
+      "bytes": 762352,
+      "uncompressed_bytes": 1884581
+    },
+    "r_rounded_counts.tsv.gz": {
+      "sha256": "e502d4f5f50287537e80606d1c710100867d580e01b67dfa1cd21094414206a7",
+      "uncompressed_sha256": "fa7599ab8db6fb8c22ae133d634a45c0b1e95577c958c66e03ed405e06c856de",
+      "bytes": 272595,
+      "uncompressed_bytes": 672776
+    },
+    "r_normalization_factors.tsv.gz": {
+      "sha256": "6651eb20e4d436fe6c2a0eac0fc04330ed20a1f7dae7dfc5b321c93aebb3be70",
+      "uncompressed_sha256": "61889bb9b5600853f5488967e80c1c523790db29c2678ac1e76c727a9ee816ac",
+      "bytes": 1105186,
+      "uncompressed_bytes": 3158567
+    },
+    "r_normalized_counts.tsv.gz": {
+      "sha256": "9aa3cd0059d29e317530153322851c0a08947003c9a7f87799dc4cc71e40f79f",
+      "uncompressed_sha256": "f4b8775e4721a62c2362ac1d2abe64fd92c721db5ebdad770851629094256f61",
+      "bytes": 1152183,
+      "uncompressed_bytes": 2400432
+    },
+    "r_results.tsv.gz": {
+      "sha256": "f4aa2dbb5754b0b9739c1fb5472ae38a3fcc976b537b3680c1c86eebe8ee529a",
+      "uncompressed_sha256": "19f2708e587bf851de562cc28d4c9017450748495d2065bc0154555981cfdc18",
+      "bytes": 1099469,
+      "uncompressed_bytes": 2713354
+    }
+  }
+}
